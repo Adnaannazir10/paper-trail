@@ -1,8 +1,11 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, Form, File
 from fastapi.responses import JSONResponse
 from schemas.search_schemas import SimilaritySearchRequest
+from schemas.journal_schemas import JournalResponse, JournalListResponse, JournalListItem
+from typing import List, Dict, Any
 from utils.similarity_search import similarity_search_manager
 from utils.background_tasks import add_document_processing_task
+from utils.journal_operations import journal_operations
 from typing import Optional
 import logging
 import json
@@ -117,8 +120,50 @@ async def similarity_search(
     )
     return response
 
-@router.get("/{journal_id}")
-def get_document_metadata(journal_id: str):
-    """Placeholder endpoint for document metadata retrieval."""
-    return JSONResponse(content={"journal_id": journal_id, "message": "Document metadata placeholder"})
+@router.get("/{journal_id}", response_model=JournalResponse)
+async def get_journal(journal_id: str):
+    """
+    Get all chunks for a specific journal.
+    
+    Args:
+        journal_id: Journal identifier
+        
+    Returns:
+        JournalResponse containing metadata and all chunks for the journal
+    """
+    try:
+        logger.info(f"Received request for journal: {journal_id}")
+        
+        response = await journal_operations.get_journal_response(journal_id)
+        
+        logger.info(f"Successfully retrieved journal {journal_id} with {len(response.chunks)} chunks")
+        return response
+        
+    except HTTPException:
+        raise HTTPException(status_code=404, detail="Journal not found")
+    except Exception as e:
+        logger.error(f"Error retrieving journal {journal_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get("/journals/list", response_model=JournalListResponse)
+async def list_journals():
+    """
+    Get list of all available journals.
+    
+    Returns:
+        JournalListResponse containing list of journals and total count
+    """
+    try:
+        logger.info("Received request to list all journals")
+        
+        # Get list of available journals
+        response = await journal_operations.get_available_journals()
+        
+        logger.info(f"Successfully retrieved {response.total_count} journals")
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error listing journals: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
     
