@@ -1,5 +1,7 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, Form, File
 from fastapi.responses import JSONResponse
+from schemas.search_schemas import SimilaritySearchRequest
+from utils.similarity_search import similarity_search_manager
 from utils.background_tasks import add_document_processing_task
 from typing import Optional
 import logging
@@ -104,9 +106,16 @@ async def upload_pdf(
 
 
 @router.post("/similarity_search")
-def similarity_search():
-    """Placeholder endpoint for similarity search."""
-    return JSONResponse(content={"message": "Similarity search placeholder"})
+async def similarity_search(
+    request: SimilaritySearchRequest
+):
+    """Endpoint for similarity search."""
+    response = await similarity_search_manager.search_similar_chunks(
+        query=request.query,
+        k=request.k,
+        min_score=request.min_score
+    )
+    return response
 
 @router.get("/{journal_id}")
 def get_document_metadata(journal_id: str):
