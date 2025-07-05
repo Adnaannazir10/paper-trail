@@ -3,9 +3,8 @@ Qdrant Vector Database Schemas
 Defines the metadata structure for document chunks stored in Qdrant.
 """
 
-from typing import List, Optional, Dict, Any
+from typing import List, Dict, Any
 from dataclasses import dataclass
-from datetime import datetime
 
 
 @dataclass
@@ -29,14 +28,7 @@ class ChunkMetadata:
     # Usage tracking
     usage_count: int = 0  # Number of times this chunk has been accessed
     
-    # Processing metadata
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-    
-    # Additional metadata
-    file_size: Optional[int] = None  # Original file size in bytes
-    chunk_size: Optional[int] = None  # Number of tokens in this chunk
-    overlap_size: Optional[int] = None  # Number of overlapping tokens with previous chunk
+
 
 
 @dataclass
@@ -68,11 +60,6 @@ class QdrantCollectionSchema:
         "section_heading": {"type": "text", "index": True},
         "attributes": {"type": "keyword", "index": True},
         "usage_count": {"type": "integer", "index": True},
-        "created_at": {"type": "datetime", "index": True},
-        "updated_at": {"type": "datetime", "index": True},
-        "file_size": {"type": "integer", "index": False},
-        "chunk_size": {"type": "integer", "index": False},
-        "overlap_size": {"type": "integer", "index": False},
         "text": {"type": "text", "index": False}  # Full text content
     }
     
@@ -88,12 +75,7 @@ class QdrantCollectionSchema:
             "link": {"type": "keyword"},
             "section_heading": {"type": "text"},
             "attributes": {"type": "keyword"},
-            "usage_count": {"type": "integer"},
-            "created_at": {"type": "datetime"},
-            "updated_at": {"type": "datetime"},
-            "file_size": {"type": "integer"},
-            "chunk_size": {"type": "integer"},
-            "overlap_size": {"type": "integer"}
+            "usage_count": {"type": "integer"}
         }
 
 
@@ -123,10 +105,5 @@ def metadata_to_dict(metadata: ChunkMetadata) -> Dict[str, Any]:
         "link": metadata.link,
         "section_heading": metadata.section_heading,
         "attributes": metadata.attributes,
-        "usage_count": metadata.usage_count,
-        "created_at": metadata.created_at.isoformat() if metadata.created_at else None,
-        "updated_at": metadata.updated_at.isoformat() if metadata.updated_at else None,
-        "file_size": metadata.file_size,
-        "chunk_size": metadata.chunk_size,
-        "overlap_size": metadata.overlap_size
+        "usage_count": metadata.usage_count
     } 

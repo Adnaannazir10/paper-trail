@@ -18,8 +18,8 @@ async def lifespan(app: FastAPI):
     # Initialize Qdrant
     try:
         logger.info("Initializing Qdrant vector database...")
-        if qdrant_manager.test_connection():
-            qdrant_manager.create_collection_if_not_exists()
+        if await qdrant_manager.test_connection():
+            await qdrant_manager.create_collection_if_not_exists()
             logger.info("Qdrant initialization completed successfully.")
         else:
             logger.error("Failed to connect to Qdrant. Please check your configuration.")
