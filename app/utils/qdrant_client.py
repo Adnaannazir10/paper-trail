@@ -7,6 +7,10 @@ from typing import Optional, Dict, Any
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
 from qdrant_client.http.exceptions import UnexpectedResponse
+from qdrant_client.http.models import (
+    KeywordIndexParams, IntegerIndexParams, TextIndexParams,
+    KeywordIndexType, IntegerIndexType, TextIndexType
+)
 
 import logging
 
@@ -84,7 +88,9 @@ class QdrantManager:
                 ),
                 optimizers_config=models.OptimizersConfigDiff(
                     memmap_threshold=20000
-                )
+                ),
+                # Define payload schema for metadata structure
+                on_disk_payload=True  # Store payload on disk for large collections
             )
             
             # Create payload indexes for efficient filtering
@@ -114,8 +120,36 @@ class QdrantManager:
     def _create_payload_indexes(self, client: QdrantClient) -> None:
         """Create payload indexes for efficient filtering and search."""
         try:
-            # For now, we'll create basic indexes. Advanced indexing can be added later
-            logger.info("Payload indexes will be created as needed during data insertion.")
+            # Define indexes for key metadata fields that will be frequently filtered
+            indexes_to_create = [
+                ("source_doc_id", KeywordIndexParams(type=KeywordIndexType.KEYWORD)),
+                ("journal", KeywordIndexParams(type=KeywordIndexType.KEYWORD)),
+                ("publish_year", IntegerIndexParams(type=IntegerIndexType.INTEGER)),
+                ("usage_count", IntegerIndexParams(type=IntegerIndexType.INTEGER)),
+                ("chunk_index", IntegerIndexParams(type=IntegerIndexType.INTEGER)),
+                ("section_heading", TextIndexParams(type=TextIndexType.TEXT)),
+                ("attributes", KeywordIndexParams(type=KeywordIndexType.KEYWORD))
+            ]
+            
+            logger.info("Creating payload indexes for efficient metadata filtering...")
+            
+            for field_name, index_params in indexes_to_create:
+                try:
+                    # Create payload index for the field
+                    client.create_payload_index(
+                        collection_name=self.collection_name,
+                        field_name=field_name,
+                        field_schema=index_params
+                    )
+                    logger.info(f"Created payload index for field: {field_name}")
+                    
+                except Exception as e:
+                    # Log warning but continue with other indexes
+                    logger.warning(f"Failed to create index for {field_name}: {e}")
+                    continue
+            
+            logger.info("Payload index creation completed.")
+            
         except Exception as e:
             logger.error(f"Error setting up payload indexes: {e}")
     
@@ -201,6 +235,50 @@ class QdrantManager:
         except Exception as e:
             logger.error(f"Failed to get most cited chunks: {e}")
             return []
+    
+    def validate_metadata_structure(self, metadata: Dict[str, Any]) -> bool:
+        """
+        Validate that metadata structure matches our schema requirements.
+        
+        Args:
+            metadata: Metadata dictionary to validate
+            
+        Returns:
+            True if valid, False otherwise
+        """
+        try:
+            # Required fields from our schema
+            required_fields = [
+                "id", "source_doc_id", "chunk_index", "journal", 
+                "publish_year", "link", "section_heading", "attributes", 
+                "usage_count", "text"
+            ]
+            
+            # Check required fields exist
+            for field in required_fields:
+                if field not in metadata:
+                    logger.warning(f"Missing required field in metadata: {field}")
+                    return False
+            
+            # Validate data types
+            if not isinstance(metadata.get("usage_count"), int):
+                logger.warning("usage_count must be an integer")
+                return False
+                
+            if not isinstance(metadata.get("attributes"), list):
+                logger.warning("attributes must be a list")
+                return False
+                
+            if not isinstance(metadata.get("chunk_index"), int):
+                logger.warning("chunk_index must be an integer")
+                return False
+            
+            logger.debug("Metadata structure validation passed")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error validating metadata structure: {e}")
+            return False
 
 
 # Global instance for easy access
