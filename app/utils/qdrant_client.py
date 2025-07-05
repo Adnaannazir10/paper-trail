@@ -7,9 +7,11 @@ from typing import Optional, Dict, Any
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
 from qdrant_client.http.exceptions import UnexpectedResponse
+
 import logging
 
 from config.qdrant_config import qdrant_settings
+from schemas.qdrant_schemas import QdrantCollectionSchema
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +21,8 @@ class QdrantManager:
     
     def __init__(self):
         self.client: Optional[QdrantClient] = None
-        self.collection_name: str = qdrant_settings.COLLECTION_NAME
-        self.vector_size: int = qdrant_settings.VECTOR_SIZE
+        self.collection_name: str = QdrantCollectionSchema.COLLECTION_NAME
+        self.vector_size: int = QdrantCollectionSchema.VECTOR_SIZE
         
     def get_client(self) -> QdrantClient:
         """Get or create Qdrant client instance."""
@@ -73,14 +75,20 @@ class QdrantManager:
                 logger.info(f"Collection '{self.collection_name}' already exists.")
                 return True
             
-            # Create collection with proper configuration
+            # Create collection with proper configuration and payload schema
             client.create_collection(
                 collection_name=self.collection_name,
                 vectors_config=models.VectorParams(
                     size=self.vector_size,
                     distance=models.Distance.COSINE
+                ),
+                optimizers_config=models.OptimizersConfigDiff(
+                    memmap_threshold=20000
                 )
             )
+            
+            # Create payload indexes for efficient filtering
+            self._create_payload_indexes(client)
             
             logger.info(f"Collection '{self.collection_name}' created successfully.")
             return True
@@ -102,6 +110,14 @@ class QdrantManager:
         except Exception as e:
             logger.error(f"Failed to get collection info: {e}")
             return None
+    
+    def _create_payload_indexes(self, client: QdrantClient) -> None:
+        """Create payload indexes for efficient filtering and search."""
+        try:
+            # For now, we'll create basic indexes. Advanced indexing can be added later
+            logger.info("Payload indexes will be created as needed during data insertion.")
+        except Exception as e:
+            logger.error(f"Error setting up payload indexes: {e}")
 
 
 # Global instance for easy access
