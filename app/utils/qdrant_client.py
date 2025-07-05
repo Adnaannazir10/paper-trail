@@ -118,6 +118,89 @@ class QdrantManager:
             logger.info("Payload indexes will be created as needed during data insertion.")
         except Exception as e:
             logger.error(f"Error setting up payload indexes: {e}")
+    
+    def increment_usage_count(self, chunk_id: str) -> bool:
+        """
+        Increment the usage count for a specific chunk.
+        
+        Args:
+            chunk_id: The ID of the chunk to update
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            client = self.get_client()
+            
+            # First, get the current usage count
+            current_points = client.retrieve(
+                collection_name=self.collection_name,
+                ids=[chunk_id],
+                with_payload=True
+            )
+            
+            if not current_points:
+                logger.warning(f"Chunk {chunk_id} not found")
+                return False
+            
+            current_count = current_points[0].payload.get("usage_count", 0) if current_points[0].payload else 0
+            new_count = current_count + 1
+            
+            # Update with the new incremented value
+            client.set_payload(
+                collection_name=self.collection_name,
+                payload={"usage_count": new_count},
+                points=[chunk_id],
+                wait=True
+            )
+            
+            logger.debug(f"Incremented usage count for chunk {chunk_id}: {current_count} -> {new_count}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to increment usage count for chunk {chunk_id}: {e}")
+            return False
+    
+    def get_most_cited_chunks(self, limit: int = 10) -> list:
+        """
+        Get the most cited/used chunks based on usage_count.
+        
+        Args:
+            limit: Number of results to return
+            
+        Returns:
+            List of chunks sorted by usage count
+        """
+        try:
+            client = self.get_client()
+            
+            # Search with filter for chunks with usage_count > 0, sorted by usage_count desc
+            results = client.scroll(
+                collection_name=self.collection_name,
+                scroll_filter=models.Filter(
+                    must=[
+                        models.FieldCondition(
+                            key="usage_count",
+                            range=models.Range(
+                                gte=1
+                            )
+                        )
+                    ]
+                ),
+                limit=limit,
+                with_payload=True,
+                with_vectors=False
+            )
+            
+            # Sort by usage_count descending
+            chunks = results[0]
+            chunks.sort(key=lambda x: x.payload.get("usage_count", 0) if x.payload else 0, reverse=True)
+            
+            return chunks[:limit]
+            
+        except Exception as e:
+            logger.error(f"Failed to get most cited chunks: {e}")
+            return []
 
 
 # Global instance for easy access
