@@ -14,3 +14,4 @@ aiohttp
 structlog
 pytest
 pytest-asyncio
+langchain-openai

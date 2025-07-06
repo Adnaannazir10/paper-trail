@@ -1,7 +1,8 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, Form, File
 from fastapi.responses import JSONResponse
+from schemas.upload_schemas import UploadResponse
 from utils.ask_llm import llm_manager
-from schemas.search_schemas import SimilaritySearchRequest
+from schemas.search_schemas import SimilaritySearchRequest, SimilaritySearchResponse
 from schemas.journal_schemas import JournalResponse, JournalListResponse
 from schemas.llm_schemas import AskLLMRequest, AskLLMResponse
 from utils.similarity_search import similarity_search_manager
@@ -15,11 +16,11 @@ import uuid
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-@router.put("/upload")
+@router.put("/upload", response_model=UploadResponse)
 async def upload_pdf(
     background_tasks: BackgroundTasks,
-    schema_version: str = Form(..., description="Schema version"),
-    file_url: Optional[str] = Form(None, description="URL to fetch the journal document"),
+    schema_version: str = Form(..., description="Schema version", examples=["v1"]),
+    file_url: Optional[str] = Form(None, description="URL to fetch the journal document", examples=["https://www.example.com/journal.pdf"]),
     upload_req: Optional[str] = Form(None, description="JSON string of UploadRequest"),
     file: Optional[UploadFile] = File(None, description="PDF file to upload")
 ):
@@ -109,7 +110,7 @@ async def upload_pdf(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/similarity_search")
+@router.post("/similarity_search", response_model=SimilaritySearchResponse)
 async def similarity_search(
     request: SimilaritySearchRequest
 ):
