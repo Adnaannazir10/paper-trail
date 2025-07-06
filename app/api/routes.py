@@ -1,10 +1,14 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, Form, File
 from fastapi.responses import JSONResponse
+from utils.compare import compare_manager
+from utils.summary import summary_manager
 from schemas.upload_schemas import UploadResponse
 from utils.ask_llm import llm_manager
 from schemas.search_schemas import SimilaritySearchRequest, SimilaritySearchResponse
 from schemas.journal_schemas import JournalResponse, JournalListResponse
 from schemas.llm_schemas import AskLLMRequest, AskLLMResponse
+from schemas.summary_schemas import SummaryResponse
+from schemas.compare_schemas import ComparePapersRequest, ComparePapersResponse
 from utils.similarity_search import similarity_search_manager
 from utils.background_tasks import add_document_processing_task
 from utils.journal_operations import journal_operations
@@ -22,7 +26,9 @@ async def upload_pdf(
     schema_version: str = Form(..., description="Schema version", examples=["v1"]),
     file_url: Optional[str] = Form(None, description="URL to fetch the journal document", examples=["https://www.example.com/journal.pdf"]),
     upload_req: Optional[str] = Form(None, description="JSON string of UploadRequest"),
-    file: Optional[UploadFile] = File(None, description="PDF file to upload")
+    file: Optional[UploadFile] = File(None, description="PDF file to upload"),
+    journal: Optional[str] = Form(None, description="Journal name"),
+    publish_year: Optional[int] = Form(None, description="Publish year")
 ):
     """
     Upload endpoint for journal documents.
@@ -90,7 +96,9 @@ async def upload_pdf(
             file_url=file_url,
             file=file,
             file_content=file_content,
-            chunks=chunks
+            chunks=chunks,
+            journal=journal,
+            publish_year=publish_year
         )
         
         return JSONResponse(

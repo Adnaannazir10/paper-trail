@@ -24,7 +24,7 @@ class JournalOperations:
         Get all chunks for a specific journal.
         
         Args:
-            journal_id: Journal identifier (can be journal name or ID)
+            journal_id: Journal identifier (journal name)
             
         Returns:
             List of JournalChunk objects containing all chunks for the journal
@@ -121,7 +121,8 @@ class JournalOperations:
                     chunk_id=str(result.id),
                     content=payload.get("text", ""),
                     chunk_index=payload.get("chunk_index", 0),
-                    usage_count=payload.get("usage_count", 0)
+                    usage_count=payload.get("usage_count", 0),
+                    source_doc_id=payload.get("source_doc_id", "unknown")
                 )
                 
                 formatted_results.append(journal_chunk)
@@ -235,9 +236,6 @@ class JournalOperations:
                     if journal_name and journal_name not in journals:
                         journals[journal_name] = {
                             "journal_name": journal_name,
-                            "sample_chunk_id": result.id,
-                            "sample_source_doc": result.payload.get("source_doc_id", ""),
-                            "sample_year": result.payload.get("publish_year", 0)
                         }
             
             journal_list = list(journals.values())
@@ -247,9 +245,6 @@ class JournalOperations:
             journal_items = [
                 JournalListItem(
                     journal_name=journal["journal_name"],
-                    sample_chunk_id=journal["sample_chunk_id"],
-                    sample_source_doc=journal["sample_source_doc"],
-                    sample_year=journal["sample_year"]
                 )
                 for journal in journal_list
             ]

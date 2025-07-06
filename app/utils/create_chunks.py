@@ -107,7 +107,7 @@ async def extract_chunk_metadata(chunk_text: str, previous_chunk: Optional[str] 
         raise HTTPException(status_code=500, detail=str(e))
 
 
-async def process_text_to_chunks(text: str, filename: str, journal: str, publish_year: int, link: str|None = None) -> List[dict]:
+async def process_text_to_chunks(text: str, filename: str, journal: str = 'unknown', publish_year: int = 0, link: str|None = None) -> List[dict]:
     """
     Process text into chunks with metadata.
     

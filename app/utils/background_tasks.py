@@ -9,7 +9,6 @@ import logging
 
 from .handle_file_url import process_pdf_from_url
 from .handle_upload_file import process_uploaded_pdf_from_content
-from .extract_metadata import extract_metadata_from_first_page
 from .create_chunks import process_text_to_chunks
 from .embeddings import embeddings_manager
 from .qdrant_client import qdrant_manager
@@ -22,7 +21,9 @@ async def process_document_background(
     file: Optional[UploadFile] = None,
     file_content: Optional[bytes] = None,
     chunks: Optional[List[Dict[str, Any]]] = None,
-    task_id: Optional[str] = None
+    task_id: Optional[str] = None,
+    journal: Optional[str] = None,
+    publish_year: Optional[int] = None
 ):
     """
     Background task to process a document: download, chunk, embed, and store in Qdrant.
@@ -31,7 +32,9 @@ async def process_document_background(
         file_url: URL to fetch the document (optional)
         file: Uploaded file (optional)
         chunks: Pre-chunked content (optional)
-        document_id: Unique identifier for the document
+        task_id: Unique identifier for the task
+        journal: Journal name (optional)
+        publish_year: Publish year (optional)
     """
     try:
         logger.info(f"Starting background document processing for: {task_id}")
@@ -47,17 +50,14 @@ async def process_document_background(
             
             # Download and extract text from PDF
             pdf_result = await process_pdf_from_url(file_url)
-            
-            # Extract metadata from first page
-            metadata = await extract_metadata_from_first_page(pdf_result["first_page_text"])
-            
+                        
             # Create chunks with metadata
             chunks = await process_text_to_chunks(
                 text=pdf_result["full_text"],
                 filename=pdf_result['filename'],
-                journal=metadata.journal, # type: ignore
-                publish_year=metadata.publish_year, # type: ignore
-                link=file_url
+                link=file_url,
+                journal=journal, # type: ignore
+                publish_year=publish_year # type: ignore
             )
             
             logger.info(f"Created {len(chunks)} chunks from URL file")
@@ -70,16 +70,13 @@ async def process_document_background(
             if file.filename is None:
                 raise ValueError("File filename is required")
             pdf_result = await process_uploaded_pdf_from_content(file_content, file.filename)
-            
-            # Extract metadata from first page
-            metadata = await extract_metadata_from_first_page(pdf_result["first_page_text"])
-                        
+                                    
             # Create chunks with metadata
             chunks = await process_text_to_chunks(
                 text=pdf_result["full_text"],
                 filename=pdf_result['filename'],
-                journal=metadata.journal, # type: ignore
-                publish_year=metadata.publish_year, # type: ignore
+                journal=journal, # type: ignore
+                publish_year=publish_year, # type: ignore
                 link=None
             )
             
@@ -142,7 +139,9 @@ def add_document_processing_task(
     file_url: Optional[str] = None,
     file: Optional[UploadFile] = None,
     file_content: Optional[bytes] = None,
-    chunks: Optional[List[Dict[str, Any]]] = None
+    chunks: Optional[List[Dict[str, Any]]] = None,
+    journal: Optional[str] = None,
+    publish_year: Optional[int] = None
 ):
     """
     Add document processing task to background tasks.
@@ -153,6 +152,7 @@ def add_document_processing_task(
         file_url: URL to fetch the document (optional)
         file: Uploaded file (optional)
         chunks: Pre-chunked content (optional)
+        journal: Journal name (optional)
     """
     background_tasks.add_task(
         process_document_background, 
@@ -160,7 +160,9 @@ def add_document_processing_task(
         file=file,
         file_content=file_content,
         chunks=chunks,
-        task_id=task_id
+        task_id=task_id,
+        journal=journal,
+        publish_year=publish_year
     )
     logger.info(f"Added document processing task for: {task_id}")
 

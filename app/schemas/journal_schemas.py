@@ -9,6 +9,7 @@ class JournalChunk(BaseModel):
     content: str
     chunk_index: int
     usage_count: int = 0
+    source_doc_id: str = 'unknown'
 
 
 class JournalMetadata(BaseModel):
@@ -26,10 +27,6 @@ class JournalResponse(BaseModel):
 class JournalListItem(BaseModel):
     """Schema for a single journal in the list"""
     journal_name: str
-    sample_chunk_id: str
-    sample_source_doc: str
-    sample_year: int
-
 
 class JournalListResponse(BaseModel):
     """Schema for journal list response"""
