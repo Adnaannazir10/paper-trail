@@ -25,7 +25,7 @@ async def upload_pdf(
     background_tasks: BackgroundTasks,
     schema_version: str = Form(..., description="Schema version", examples=["v1"]),
     file_url: Optional[str] = Form(None, description="URL to fetch the journal document", examples=["https://www.example.com/journal.pdf"]),
-    upload_req: Optional[str] = Form(None, description="JSON string of UploadRequest"),
+    chunks: Optional[str] = Form(None, description="JSON string of chunks"),
     file: Optional[UploadFile] = File(None, description="PDF file to upload"),
     journal: Optional[str] = Form(None, description="Journal name"),
     publish_year: Optional[int] = Form(None, description="Publish year")
@@ -35,24 +35,40 @@ async def upload_pdf(
     
     Accepts multipart form data with:
     - schema_version: Schema version
-    - upload_req: JSON string containing chunks
+    - chunks: JSON string containing chunks (optional)
+    Structure of chunks (JSON format):<br>
+    [
+      {
+        "id": "unique_chunk_identifier",
+        "source_doc_id": "source_document_id",
+        "chunk_index": 1,
+        "text": "The actual text content of the chunk",
+        "section_heading": "Introduction",
+        "attributes": ["topic1", "topic2", "topic3"],
+        "journal": "Journal Name",
+        "publish_year": 2024,
+        "usage_count": 0,
+        "link": "https://example.com/document.pdf"
+      }
+    ]
     - file_url: URL to fetch the journal document
     - file: PDF file upload (optional if file_url provided)
+    - journal: Journal name
+    - publish_year: Publish year
     
     Returns 202 Accepted and processes document in background.
     """
     try:
         logger.info(f"Received upload request with schema_version: {schema_version}")
-        
         # Parse upload_req if provided
-        chunks = None
-        if upload_req:
+        chunks_list = None
+        if chunks:
             try:
-                upload_data = json.loads(upload_req)
-                chunks = upload_data.get('chunks')
-                logger.info(f"Parsed {len(chunks) if chunks else 0} chunks from upload_req")
+                chunks_list = json.loads(chunks)
+                print(chunks_list)
+                logger.info(f"Parsed {len(chunks_list) if chunks_list else 0} chunks from chunks")
             except json.JSONDecodeError:
-                raise HTTPException(status_code=400, detail="Invalid JSON in upload_req field")
+                raise HTTPException(status_code=400, detail="Invalid JSON in chunks field")
             except Exception as e:
                 raise HTTPException(status_code=400, detail=f"Invalid upload request data: {str(e)}")
         
@@ -62,7 +78,7 @@ async def upload_pdf(
             options_provided += 1
         if file_url is not None:
             options_provided += 1
-        if chunks is not None:
+        if chunks_list is not None:
             options_provided += 1
         
         if options_provided == 0:
@@ -96,7 +112,7 @@ async def upload_pdf(
             file_url=file_url,
             file=file,
             file_content=file_content,
-            chunks=chunks,
+            chunks=chunks_list,
             journal=journal,
             publish_year=publish_year
         )
