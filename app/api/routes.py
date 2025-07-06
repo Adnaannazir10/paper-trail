@@ -1,8 +1,9 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, Form, File
 from fastapi.responses import JSONResponse
+from utils.ask_llm import llm_manager
 from schemas.search_schemas import SimilaritySearchRequest
-from schemas.journal_schemas import JournalResponse, JournalListResponse, JournalListItem
-from typing import List, Dict, Any
+from schemas.journal_schemas import JournalResponse, JournalListResponse
+from schemas.llm_schemas import AskLLMRequest, AskLLMResponse
 from utils.similarity_search import similarity_search_manager
 from utils.background_tasks import add_document_processing_task
 from utils.journal_operations import journal_operations
@@ -166,4 +167,26 @@ async def list_journals():
     except Exception as e:
         logger.error(f"Error listing journals: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.post("/ask_llm", response_model=AskLLMResponse)
+async def ask_llm(request: AskLLMRequest):
+    """
+    Ask the LLM a question with optional journal context.
     
+    Args:
+        request: AskLLMRequest containing the query and optional journal filter
+        
+    Returns:
+        AskLLMResponse containing the LLM's response
+    """
+    try:
+        logger.info(f"Received LLM query: {request.query[:100]}...")
+        if request.journal:
+            logger.info(f"Journal filter: {request.journal}")
+        
+        return await llm_manager.ask_llm(request.query, request.journal)
+                
+    except Exception as e:
+        logger.error(f"Error in ask_llm endpoint: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
