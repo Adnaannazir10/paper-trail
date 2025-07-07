@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, Form, File
 from fastapi.responses import JSONResponse
+from schemas.docs_schemas import DocumentListResponse
 from utils.compare import compare_manager
 from utils.summary import summary_manager
 from schemas.upload_schemas import UploadResponse
@@ -16,11 +17,12 @@ from typing import Optional
 import logging
 import json
 import uuid
+from utils.qdrant_client import qdrant_manager
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-@router.put("/upload", response_model=UploadResponse)
+@router.put("/upload", status_code=202, response_model=UploadResponse)
 async def upload_pdf(
     background_tasks: BackgroundTasks,
     schema_version: str = Form(..., description="Schema version", examples=["v1"]),
@@ -214,4 +216,48 @@ async def ask_llm(request: AskLLMRequest):
                 
     except Exception as e:
         logger.error(f"Error in ask_llm endpoint: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@router.get("/docs/list", response_model=DocumentListResponse)
+async def list_docs():
+    """
+    Get list of all available documents (source_doc_id and paper_name).
+    """
+    try:
+        logger.info("Received request to list all documents in full_doc collection")
+        return await qdrant_manager.list_full_docs()
+    except Exception as e:
+        logger.error(f"Error listing documents: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@router.get("/summary/{paper_name}", response_model=SummaryResponse)
+async def get_summary(paper_name: str):
+    """
+    Get the summary for a document by its paper name.
+
+    Args:
+        paper_name: The name of the paper to summarize.
+
+    Returns:
+        SummaryResponse containing the summary.
+    """
+    try:
+        logger.info(f"Received request to summarize paper: {paper_name}")
+        summary = await summary_manager.summarize_doc_by_paper_name(paper_name)
+        return summary
+    except Exception as e:
+        logger.error(f"Error summarizing paper '{paper_name}': {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@router.post("/compare", response_model=ComparePapersResponse)
+async def compare_papers(request: ComparePapersRequest):
+    """
+    Compare two or more papers.
+    """
+    try:
+        logger.info(f"Received request to compare papers: {request.paper_names}")
+        comparison = await compare_manager.compare_papers_by_names(request.paper_names)
+        return comparison
+    except Exception as e:
+        logger.error(f"Error comparing papers: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")

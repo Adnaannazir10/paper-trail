@@ -259,6 +259,37 @@ class JournalOperations:
             logger.error(f"Error retrieving available journals: {e}")
             raise HTTPException(status_code=500, detail=str(e))
 
+    async def get_doc_chunks(self, source_doc_id: str) -> List[JournalChunk]:
+        """
+        Get all chunks for a specific document by source_doc_id.
+        """
+        try:
+            logger.info(f"Retrieving all chunks for document: {source_doc_id}")
+            client = self.qdrant_manager.get_client()
+            dummy_vector = [0.0] * self.qdrant_manager.vector_size
+            # Search with source_doc_id filter
+            search_results = client.search(
+                collection_name=self.qdrant_manager.collection_name,
+                query_vector=dummy_vector,
+                query_filter=models.Filter(
+                    must=[
+                        models.FieldCondition(
+                            key="source_doc_id",
+                            match=models.MatchValue(value=source_doc_id)
+                        )
+                    ]
+                ),
+                limit=1000,
+                with_payload=True,
+                with_vectors=False
+            )
+            formatted_results = self._format_journal_results(search_results)
+            logger.info(f"Retrieved {len(formatted_results)} chunks for document: {source_doc_id}")
+            return formatted_results
+        except Exception as e:
+            logger.error(f"Error retrieving doc chunks for {source_doc_id}: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
 
 # Global instance for reuse
 journal_operations = JournalOperations() 

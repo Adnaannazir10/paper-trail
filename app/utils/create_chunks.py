@@ -10,6 +10,8 @@ from langchain.output_parsers import PydanticOutputParser
 from pydantic import BaseModel, Field
 from typing import List, Optional
 import logging
+from .extract_paper_name import paper_name_extractor
+from .qdrant_client import qdrant_manager
 
 logger = logging.getLogger(__name__)
 
@@ -81,14 +83,14 @@ async def extract_chunk_metadata(chunk_text: str, previous_chunk: Optional[str] 
         prompt = ChatPromptTemplate.from_messages([
             ("system", "You are a helpful assistant that extracts metadata from text chunks."),
             ("user", (
-                f"{context}Extract the section heading and attributes from this text chunk. "
+                f"{context.replace('{', '(').replace('}', ')')}Extract the section heading and attributes from this text chunk. "
                 "Rules:\n"
                 "1. If the chunk contains a clear section heading, use that\n"
                 "2. Try to extract the section heading from the chunk text\n"
                 "3. Their will always be a section heading, like it may be 'Introduction', 'Methods', 'Results', 'Discussion', 'Conclusion', or a question or a statement\n"
                 "4. Attributes should be a list of 2-5 key topics/themes from the chunk\n"
                 "5. Return as JSON with 'section_heading' (string or null) and 'attributes' (list of strings)\n\n"
-                f"Current chunk:\n{chunk_text}\n\n"
+                f"Current chunk:\n{chunk_text.replace('{', '(').replace('}', ')')}\n\n"
                 "Return only the JSON object."
             ))
         ])
@@ -104,6 +106,8 @@ async def extract_chunk_metadata(chunk_text: str, previous_chunk: Optional[str] 
         
     except Exception as e:
         logger.error(f"Error extracting chunk metadata: {e}")
+        print(chunk_text, "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
+        print(previous_chunk, "ppppppppppppppppppppppppppppppppp")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -122,7 +126,24 @@ async def process_text_to_chunks(text: str, filename: str, journal: str = 'unkno
     """
     try:
         logger.info(f"Processing text from {filename} into chunks")
-        
+
+        # Extract paper name from the first 10,000 words
+        first_10000_words = " ".join(text.split()[:10000])
+        extracted_paper_name = await paper_name_extractor.extract_paper_name(first_10000_words)
+        logger.info(f"Extracted paper name: {extracted_paper_name}")
+
+        # Save full text in Qdrant (full_doc collection)
+        try:
+            await qdrant_manager.save_full_doc(
+                source_doc_id=filename,
+                paper_name=extracted_paper_name if extracted_paper_name else filename,
+                journal=journal,
+                full_text=text
+            )
+            logger.info(f"Saved full text for {filename} in Qdrant full_doc collection.")
+        except Exception as e:
+            logger.warning(f"Failed to save full text for {filename} in Qdrant: {e}")
+
         # Create chunks
         text_chunks = create_chunks(text)
         

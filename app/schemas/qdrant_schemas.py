@@ -106,4 +106,23 @@ def metadata_to_dict(metadata: ChunkMetadata) -> Dict[str, Any]:
         "section_heading": metadata.section_heading,
         "attributes": metadata.attributes,
         "usage_count": metadata.usage_count
-    } 
+    }
+
+
+class FullDocCollectionSchema:
+    """Schema definition for Qdrant collection to store full document text."""
+    COLLECTION_NAME = "full_doc"
+    PAYLOAD_FIELDS = {
+        "source_doc_id": {"type": "keyword", "index": True},
+        "paper_name": {"type": "keyword", "index": True},
+        "journal": {"type": "keyword", "index": True},
+        "full_text": {"type": "text", "index": False}  # Full document text
+    }
+
+    @classmethod
+    def get_payload_schema(cls) -> Dict[str, Any]:
+        return {
+            "full_text": {"type": "text"},
+            "source_doc_id": {"type": "keyword"},
+            "journal": {"type": "keyword"}
+        } 

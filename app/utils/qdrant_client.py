@@ -6,17 +6,17 @@ Handles connection setup and basic operations for the vector database.
 import asyncio
 from typing import Optional, Dict, Any, List
 import uuid
+from fastapi import HTTPException
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
 from qdrant_client.http.models import (
     KeywordIndexParams, IntegerIndexParams, TextIndexParams,
     KeywordIndexType, IntegerIndexType, TextIndexType
 )
-
 import logging
-
+from schemas.docs_schemas import DocumentListItem, DocumentListResponse
 from config.qdrant_config import qdrant_settings
-from schemas.qdrant_schemas import QdrantCollectionSchema
+from schemas.qdrant_schemas import QdrantCollectionSchema, FullDocCollectionSchema
 
 logger = logging.getLogger(__name__)
 
@@ -390,6 +390,128 @@ class QdrantManager:
         except Exception as e:
             logger.error(f"Error validating metadata structure: {e}")
             return False
+
+    async def create_full_doc_collection_if_not_exists(self) -> bool:
+        """Create the full_doc collection for storing full document text if it doesn't exist."""
+        try:
+            client = self.get_client()
+            loop = asyncio.get_event_loop()
+
+            # Check if collection exists
+            collections = await loop.run_in_executor(None, client.get_collections)
+            collection_names = [col.name for col in collections.collections]
+
+            if FullDocCollectionSchema.COLLECTION_NAME in collection_names:
+                logger.info(f"Collection '{FullDocCollectionSchema.COLLECTION_NAME}' already exists.")
+                return True
+
+            # Create collection for full document text (with fake vector config)
+            await loop.run_in_executor(
+                None,
+                lambda: client.create_collection(
+                    collection_name=FullDocCollectionSchema.COLLECTION_NAME,
+                    vectors_config=models.VectorParams(
+                        size=384,
+                        distance=models.Distance.COSINE
+                    ),
+                    on_disk_payload=True
+                )
+            )
+            logger.info(f"Collection '{FullDocCollectionSchema.COLLECTION_NAME}' created successfully.")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to create collection '{FullDocCollectionSchema.COLLECTION_NAME}': {e}")
+            return False
+
+    async def save_full_doc(self, source_doc_id: str, paper_name: str, journal: str, full_text: str) -> bool:
+        """Save a full document to the 'full_doc' collection in Qdrant with a fake embedding."""
+        try:
+            client = self.get_client()
+            loop = asyncio.get_event_loop()
+            point_id = str(uuid.uuid4())
+            payload = {
+                "source_doc_id": source_doc_id,
+                "paper_name": paper_name,
+                "journal": journal,
+                "full_text": full_text
+            }
+            point = models.PointStruct(
+                id=point_id,
+                vector=[0.0]*384,  # Fake embedding
+                payload=payload
+            )
+            await loop.run_in_executor(
+                None,
+                lambda: client.upsert(
+                    collection_name=FullDocCollectionSchema.COLLECTION_NAME,
+                    points=[point],
+                    wait=True
+                )
+            )
+            logger.info(f"Saved full document for '{source_doc_id}' in Qdrant full_doc collection.")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to save full document for '{source_doc_id}': {e}")
+            return False
+
+    async def list_full_docs(self) -> DocumentListResponse:
+        """Return a list of all documents in the full_doc collection with source_doc_id and paper_name."""
+        try:
+            client = self.get_client()
+            loop = asyncio.get_event_loop()
+            # Scroll through all points in the full_doc collection
+            results = await loop.run_in_executor(
+                None,
+                lambda: client.scroll(
+                    collection_name=FullDocCollectionSchema.COLLECTION_NAME,
+                    limit=1000,
+                    with_payload=True,
+                    with_vectors=False
+                )
+            )
+            docs = []
+            for point in results[0]:
+                payload = point.payload or {}
+                docs.append({
+                    "source_doc_id": payload.get("source_doc_id", ""),
+                    "paper_name": payload.get("paper_name", "")
+                })
+            docs_list = [DocumentListItem(**doc) for doc in docs]
+            return DocumentListResponse(documents=docs_list, total_count=len(docs))
+        except Exception as e:
+            logger.error(f"Failed to list documents in full_doc collection: {e}")
+            raise HTTPException(status_code=500, detail="Internal server error")
+
+    async def get_full_doc_by_paper_name(self, paper_name: str) -> Optional[dict]:
+        """Get a document from the full_doc collection by paper_name."""
+        try:
+            client = self.get_client()
+            loop = asyncio.get_event_loop()
+            # Search for the document with the given paper_name
+            results = await loop.run_in_executor(
+                None,
+                lambda: client.scroll(
+                    collection_name=FullDocCollectionSchema.COLLECTION_NAME,
+                    scroll_filter=models.Filter(
+                        must=[
+                            models.FieldCondition(
+                                key="paper_name",
+                                match=models.MatchValue(value=paper_name)
+                            )
+                        ]
+                    ),
+                    limit=1,
+                    with_payload=True,
+                    with_vectors=False
+                )
+            )
+            docs = results[0]
+            if docs:
+                return docs[0].payload
+            return None
+        except Exception as e:
+            logger.error(f"Failed to get document by paper_name '{paper_name}': {e}")
+            return None
 
 
 # Global instance for easy access
