@@ -4,9 +4,6 @@ import './App.css';
 
 interface JournalListItem {
   journal_name: string;
-  sample_chunk_id: string;
-  sample_source_doc: string;
-  sample_year: number;
 }
 
 interface JournalListResponse {
@@ -114,7 +111,7 @@ function App() {
               <option value="">All Journals</option>
               {journals.map((journalItem, index) => (
                 <option key={index} value={journalItem.journal_name}>
-                  {journalItem.journal_name} ({journalItem.sample_year})
+                  {journalItem.journal_name}
                 </option>
               ))}
             </select>
